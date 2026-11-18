@@ -56,7 +56,7 @@ impl Display for Secp256k1Err {
 #[cfg(feature = "secp256k1-static-context")]
 pub fn ecrecover_test() {
     use crate::k256::{
-        ecdsa::{hazmat::bits2field, SigningKey},
+        ecdsa::SigningKey,
         elliptic_curve::{group::GroupEncoding, ops::Reduce},
         Scalar,
     };
@@ -83,12 +83,8 @@ pub fn ecrecover_test() {
 
     let public_key = private_key.verifying_key().as_affine();
 
-    let (signature, recovery_id) = private_key.sign_prehash_recoverable(&digest).unwrap();
-    let msg = <Scalar as Reduce<crate::k256::U256>>::reduce_bytes(
-        &bits2field::<crate::k256::Secp256k1>(&digest)
-            .map_err(|_| ())
-            .unwrap(),
-    );
+    let (signature, recovery_id) = private_key.sign_prehash_recoverable(&digest);
+    let msg = <Scalar as Reduce<crate::k256::FieldBytes>>::reduce((&digest).into());
 
     let recovered_key = recover(&msg, &signature, &recovery_id).unwrap();
 

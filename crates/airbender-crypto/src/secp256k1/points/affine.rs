@@ -1,4 +1,4 @@
-use crate::k256::{elliptic_curve::subtle::Choice, CompressedPoint, EncodedPoint, FieldBytes};
+use crate::k256::{elliptic_curve::subtle::Choice, CompressedPoint, FieldBytes, Sec1Point};
 use crate::secp256k1::field::{FieldElement, FieldElementConst};
 use crate::secp256k1::hooks::Secp256k1Hooks;
 
@@ -245,16 +245,12 @@ impl Affine {
         }
     }
 
-    pub fn to_encoded_point(self, compress: bool) -> EncodedPoint {
+    pub fn to_encoded_point(self, compress: bool) -> Sec1Point {
         use crate::k256::elliptic_curve::subtle::ConditionallySelectable;
 
-        EncodedPoint::conditional_select(
-            &EncodedPoint::from_affine_coordinates(
-                &self.x.to_bytes(),
-                &self.y.to_bytes(),
-                compress,
-            ),
-            &EncodedPoint::identity(),
+        Sec1Point::conditional_select(
+            &Sec1Point::from_affine_coordinates(&self.x.to_bytes(), &self.y.to_bytes(), compress),
+            &Sec1Point::identity(),
             Choice::from(self.is_infinity() as u8),
         )
     }

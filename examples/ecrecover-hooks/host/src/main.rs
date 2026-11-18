@@ -2,14 +2,14 @@ use airbender_host::{Inputs, Program, Result, Runner};
 use std::path::PathBuf;
 
 use airbender_crypto::k256::{
-    ecdsa::{hazmat::bits2field, RecoveryId, Signature},
+    ecdsa::{RecoveryId, Signature},
     elliptic_curve::ops::Reduce,
-    Scalar, Secp256k1, U256,
+    FieldBytes, Scalar,
 };
 use airbender_crypto::secp256k1::field::FieldElement;
 use airbender_crypto::secp256k1::hooks::{DefaultSecp256k1Hooks, Secp256k1Hooks};
-use airbender_crypto::secp256k1::scalars;
 use airbender_crypto::secp256k1::recover_with_hooks;
+use airbender_crypto::secp256k1::scalars;
 
 fn main() -> Result<()> {
     let dist_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../guest/dist/app");
@@ -33,8 +33,7 @@ fn main() -> Result<()> {
     // the guest will verify cheaply.
     let signature = Signature::from_scalars(r, s).unwrap();
     let recovery_id = RecoveryId::try_from(rec_id).unwrap();
-    let message =
-        <Scalar as Reduce<U256>>::reduce_bytes(&bits2field::<Secp256k1>(&digest).unwrap());
+    let message = <Scalar as Reduce<FieldBytes>>::reduce((&digest).into());
 
     let mut capturing = CapturingHooks::default();
     let pk = recover_with_hooks(&message, &signature, &recovery_id, &mut capturing).unwrap();
