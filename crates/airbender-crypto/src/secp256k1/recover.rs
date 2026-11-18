@@ -1,8 +1,5 @@
 use crate::k256::{
-    elliptic_curve::{
-        bigint::{CheckedAdd, U256},
-        Curve, FieldBytesEncoding,
-    },
+    elliptic_curve::{bigint::CheckedAdd, field, Curve},
     Secp256k1,
 };
 
@@ -68,12 +65,12 @@ pub fn recover_with_context_and_hooks<H: super::hooks::Secp256k1Hooks>(
     let mut brx = sigr.to_repr();
 
     if recovery_id.is_x_reduced() {
-        match <U256 as FieldBytesEncoding<Secp256k1>>::decode_field_bytes(&brx)
+        match field::bytes_to_uint::<Secp256k1>(&brx)
             .checked_add(&Secp256k1::ORDER)
             .into_option()
         {
             Some(restored) => {
-                brx = <U256 as FieldBytesEncoding<Secp256k1>>::encode_field_bytes(&restored);
+                brx = field::uint_to_bytes::<Secp256k1>(&restored);
             }
             None => return Err(Secp256k1Err::OperationOverflow),
         }
@@ -675,17 +672,12 @@ mod tests {
         rec_id: u8,
     ) -> Result<Affine, super::Secp256k1Err> {
         use k256::ecdsa::{RecoveryId, Signature};
-        use {
-            k256::elliptic_curve::ops::Reduce,
-            k256::{ecdsa::hazmat::bits2field, Scalar},
-        };
+        use {k256::elliptic_curve::ops::Reduce, k256::Scalar};
 
         let signature = Signature::from_scalars(r, s).unwrap();
         let recovery_id = RecoveryId::try_from(rec_id).unwrap();
 
-        let message = <Scalar as Reduce<k256::U256>>::reduce_bytes(
-            &bits2field::<k256::Secp256k1>(&digest).unwrap(),
-        );
+        let message = <Scalar as Reduce<k256::FieldBytes>>::reduce((&digest).into());
 
         super::recover(&message, &signature, &recovery_id)
     }
@@ -695,10 +687,7 @@ mod tests {
     fn recover_with_default_hooks_matches_recover() {
         use crate::secp256k1::hooks::DefaultSecp256k1Hooks;
         use k256::ecdsa::{RecoveryId, Signature};
-        use {
-            k256::elliptic_curve::ops::Reduce,
-            k256::{ecdsa::hazmat::bits2field, Scalar},
-        };
+        use {k256::elliptic_curve::ops::Reduce, k256::Scalar};
 
         let digest = [
             56, 209, 138, 203, 103, 210, 92, 139, 185, 148, 39, 100, 182, 47, 24, 225, 112, 84,
@@ -712,9 +701,7 @@ mod tests {
 
         let signature = Signature::from_scalars(r, s).unwrap();
         let recovery_id = RecoveryId::try_from(0u8).unwrap();
-        let message = <Scalar as Reduce<k256::U256>>::reduce_bytes(
-            &bits2field::<k256::Secp256k1>(&digest).unwrap(),
-        );
+        let message = <Scalar as Reduce<k256::FieldBytes>>::reduce((&digest).into());
 
         let without_hooks = super::recover(&message, &signature, &recovery_id).unwrap();
         let with_hooks = super::recover_with_hooks(

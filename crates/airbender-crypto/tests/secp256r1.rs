@@ -1,10 +1,7 @@
 use airbender_crypto::{
-    p256::{
-        ecdsa::{
-            signature::hazmat::{PrehashSigner, PrehashVerifier},
-            Signature, SigningKey, VerifyingKey,
-        },
-        elliptic_curve::{rand_core::OsRng, sec1::ToEncodedPoint},
+    p256::ecdsa::{
+        signature::hazmat::{PrehashSigner, PrehashVerifier},
+        Signature, SigningKey, VerifyingKey,
     },
     secp256r1::{verify, Secp256r1Err},
     sha3::Keccak256,
@@ -12,14 +9,25 @@ use airbender_crypto::{
 };
 use proptest::prelude::*;
 
+fn random_signing_key() -> SigningKey {
+    use rand_core::{OsRng, RngCore};
+
+    loop {
+        let mut candidate = [0; 32];
+        OsRng.fill_bytes(&mut candidate);
+        if let Ok(key) = SigningKey::from_slice(&candidate) {
+            return key;
+        }
+    }
+}
+
 fn split_signature(sig: &Signature) -> ([u8; 32], [u8; 32]) {
-    let r_bytes = sig.r().to_bytes();
-    let s_bytes = sig.s().to_bytes();
+    let (r_bytes, s_bytes) = sig.split_bytes();
     (r_bytes.into(), s_bytes.into())
 }
 
 fn split_public_key(pk: &VerifyingKey) -> Option<([u8; 32], [u8; 32])> {
-    let encoded_point = pk.as_affine().to_encoded_point(false);
+    let encoded_point = pk.to_sec1_point(false);
 
     match encoded_point.coordinates() {
         p256::elliptic_curve::sec1::Coordinates::Uncompressed { x, y } => {
@@ -42,7 +50,7 @@ fn get_input(msg: [u8; 100]) -> ([u8; 32], [u8; 32], [u8; 32], [u8; 32], [u8; 32
         hash_bytes
     };
 
-    let signing_key = SigningKey::random(&mut OsRng);
+    let signing_key = random_signing_key();
     let verify_key = signing_key.verifying_key();
     let sig: Signature = signing_key.sign_prehash(&digest).unwrap();
 
@@ -198,7 +206,7 @@ fn bad_signature() {
                 hash_bytes
             };
 
-            let signing_key = SigningKey::random(&mut OsRng);
+            let signing_key = random_signing_key();
             let verify_key = signing_key.verifying_key();
             let sig = Signature::from_bytes(&sig.into()).unwrap();
 
@@ -229,8 +237,8 @@ fn bad_signing_key() {
                 hash_bytes
             };
 
-            let signing_key = SigningKey::random(&mut OsRng);
-            let bad_signing_key = SigningKey::random(&mut OsRng);
+            let signing_key = random_signing_key();
+            let bad_signing_key = random_signing_key();
 
             if signing_key != bad_signing_key {
                 let bad_verify_key = bad_signing_key.verifying_key();

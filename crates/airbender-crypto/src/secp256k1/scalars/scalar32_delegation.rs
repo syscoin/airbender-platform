@@ -1,10 +1,6 @@
 use crate::ark_ff_delegation::BigInt;
 use crate::bigint_delegation::{u256, DelegatedModParams, DelegatedMontParams};
 
-const _: () = const {
-    assert!(core::mem::size_of::<crate::k256::Scalar>() == core::mem::size_of::<ScalarInner>());
-};
-
 static MODULUS: BigInt<4> = ScalarInner::ORDER.0;
 static REDUCTION_CONST: BigInt<4> = ScalarInner::REDUCTION_CONST.0;
 
@@ -79,15 +75,6 @@ impl ScalarInner {
 
     pub(super) fn from_be_bytes(bytes: &[u8; 32]) -> Self {
         let t = Self::from_be_bytes_unchecked(bytes);
-
-        t.to_representation()
-    }
-
-    #[allow(dead_code)] // TODO: to be fixed in `zksync-os/crypto` first
-    pub(crate) fn from_k256_scalar(s: crate::k256::Scalar) -> Self {
-        // SAFETY: it is reduced, but doesn't use Montgomery form
-        // we have to copy here because we have stricter alginment than k256::Scalar
-        let t: Self = unsafe { core::mem::transmute_copy(&s) };
 
         t.to_representation()
     }

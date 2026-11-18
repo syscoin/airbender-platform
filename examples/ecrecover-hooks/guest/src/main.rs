@@ -2,9 +2,9 @@
 #![no_main]
 
 use airbender::crypto::k256::{
-    ecdsa::{hazmat::bits2field, RecoveryId, Signature},
+    ecdsa::{RecoveryId, Signature},
     elliptic_curve::ops::Reduce,
-    Scalar, Secp256k1, U256,
+    FieldBytes, Scalar, U256,
 };
 use airbender::crypto::secp256k1::field::FieldElement;
 use airbender::crypto::secp256k1::hooks::Secp256k1Hooks;
@@ -31,8 +31,7 @@ fn main() -> u32 {
 
     let signature = Signature::from_scalars(r, s).expect("invalid signature");
     let recovery_id = RecoveryId::try_from(rec_id).expect("invalid recovery id");
-    let message =
-        <Scalar as Reduce<U256>>::reduce_bytes(&bits2field::<Secp256k1>(&digest).expect("bits"));
+    let message = <Scalar as Reduce<FieldBytes>>::reduce((&digest).into());
 
     let mut hooks = PrecomputedHintHooks::new(sqrt_hint, scalar_inv_hint, fe_inv_hint);
     let pk = recover_with_hooks(&message, &signature, &recovery_id, &mut hooks)

@@ -1,11 +1,7 @@
 use airbender_crypto::secp256k1::recover;
 use airbender_crypto::{
-    k256::elliptic_curve::{ops::Reduce, rand_core::OsRng},
-    k256::{
-        ecdsa::{hazmat::bits2field, SigningKey},
-        elliptic_curve::group::GroupEncoding,
-        Scalar,
-    },
+    k256::elliptic_curve::ops::Reduce,
+    k256::{ecdsa::SigningKey, elliptic_curve::group::GroupEncoding, Scalar},
     sha3::Keccak256,
     MiniDigest,
 };
@@ -15,6 +11,18 @@ use proptest::{
     prelude::{any, Arbitrary, BoxedStrategy, Just, Strategy},
     prop_assert_eq, proptest,
 };
+
+fn random_signing_key() -> SigningKey {
+    use rand_core::{OsRng, RngCore};
+
+    loop {
+        let mut candidate = [0; 32];
+        OsRng.fill_bytes(&mut candidate);
+        if let Ok(key) = SigningKey::from_slice(&candidate) {
+            return key;
+        }
+    }
+}
 
 #[derive(Debug)]
 struct Message(String);
@@ -36,7 +44,7 @@ impl Arbitrary for PrivateKey {
     type Parameters = ();
 
     fn arbitrary_with(_: Self::Parameters) -> Self::Strategy {
-        Just(PrivateKey(SigningKey::random(&mut OsRng))).boxed()
+        Just(PrivateKey(random_signing_key())).boxed()
     }
 
     type Strategy = BoxedStrategy<Self>;
@@ -58,12 +66,8 @@ fn selftest() {
 
         let public_key = private_key.verifying_key().as_affine();
 
-        let (signature, recovery_id) = private_key.sign_prehash_recoverable(&digest).unwrap();
-        let msg = <Scalar as Reduce<airbender_crypto::k256::U256>>::reduce_bytes(
-            &bits2field::<airbender_crypto::k256::Secp256k1>(&digest)
-                .map_err(|_| ())
-                .unwrap(),
-        );
+        let (signature, recovery_id) = private_key.sign_prehash_recoverable(&digest);
+        let msg = <Scalar as Reduce<airbender_crypto::k256::FieldBytes>>::reduce((&digest).into());
 
         let recovered_key = recover(&msg, &signature, &recovery_id).unwrap();
 

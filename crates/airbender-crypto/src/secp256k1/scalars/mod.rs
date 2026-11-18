@@ -60,7 +60,6 @@ impl Scalar {
         self.0.to_be_bytes().into()
     }
 
-    #[cfg(test)]
     pub(crate) fn from_repr(bytes: FieldBytes) -> Self {
         let bytes: [u8; 32] = bytes.into();
         Self(ScalarInner::from_be_bytes(&bytes))
@@ -68,7 +67,8 @@ impl Scalar {
 
     #[inline(always)]
     pub fn from_k256_scalar(s: crate::k256::Scalar) -> Self {
-        Self(ScalarInner::from_k256_scalar(s))
+        // The delegated backend converts these canonical bytes to Montgomery form once.
+        Self::from_repr(s.to_bytes())
     }
 
     pub fn decompose(self) -> (Self, Self) {
@@ -186,6 +186,31 @@ impl core::ops::Sub for Scalar {
 
     fn sub(self, rhs: Self) -> Self::Output {
         self + (-rhs)
+    }
+}
+
+#[cfg(test)]
+#[test]
+fn rustcrypto_scalar_encoding_round_trips() {
+    use crate::k256::elliptic_curve::ops::Reduce;
+
+    let order_minus_one = crate::k256::U256::from_be_hex(
+        "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364140",
+    );
+    for value in [
+        crate::k256::U256::ZERO,
+        crate::k256::U256::ONE,
+        order_minus_one,
+    ] {
+        let external = <crate::k256::Scalar as Reduce<crate::k256::U256>>::reduce(&value);
+        let native = Scalar::from_k256_scalar(external);
+        assert_eq!(native.to_repr(), external.to_bytes());
+        let delegated =
+            scalar32_delegation::ScalarInner::from_be_bytes(&external.to_bytes().into());
+        assert_eq!(
+            delegated.to_be_bytes(),
+            <[u8; 32]>::from(external.to_bytes())
+        );
     }
 }
 

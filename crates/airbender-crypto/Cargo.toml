@@ -16,8 +16,8 @@ common_constants = { workspace = true }
 blake2 = { workspace = true }
 sha3 = { workspace = true }
 sha2 = { workspace = true }
-k256 =  { workspace = true, features = ["ecdsa-core", "ecdsa", "arithmetic"] }
-p256 =  { workspace = true, features = ["ecdsa-core", "ecdsa", "arithmetic"] }
+k256 =  { workspace = true, features = ["ecdsa", "arithmetic"] }
+p256 =  { workspace = true, features = ["ecdsa", "arithmetic"] }
 blake2s_u32 = { workspace = true, optional = true }
 ripemd = { workspace = true }
 ruint = { workspace = true }

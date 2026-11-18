@@ -1,11 +1,6 @@
 // modified version of https://github.com/RustCrypto/elliptic-curves/blob/master/k256/src/arithmetic/scalar/wide32.rs
 
-use crate::k256::elliptic_curve::bigint::{Encoding, Limb, U256};
-
-const _: () = const {
-    assert!(core::mem::size_of::<crate::k256::Scalar>() == core::mem::size_of::<ScalarInner>());
-    assert!(core::mem::align_of::<crate::k256::Scalar>() >= core::mem::align_of::<ScalarInner>());
-};
+use crate::k256::elliptic_curve::bigint::{Limb, NonZero, U256};
 
 #[derive(Clone, Copy)]
 pub struct ScalarInner(U256);
@@ -65,10 +60,6 @@ impl ScalarInner {
         Self(U256::from_be_slice(bytes))
     }
 
-    pub(crate) fn from_k256_scalar(s: crate::k256::Scalar) -> Self {
-        unsafe { Self(core::mem::transmute(s)) }
-    }
-
     #[cfg(test)]
     pub(super) const fn from_u128(n: u128) -> Self {
         Self(U256::from_u128(n))
@@ -79,7 +70,7 @@ impl ScalarInner {
     }
 
     pub(super) fn to_be_bytes(self) -> [u8; 32] {
-        self.0.to_be_bytes()
+        self.0.to_be_bytes().into()
     }
 
     pub(super) fn bits(&self, offset: usize, count: usize) -> u32 {
@@ -113,10 +104,7 @@ impl ScalarInner {
     }
 
     pub(super) fn eq_mod(&self, other: &Self, modulus: &Self) -> bool {
-        let (order, _) =
-            crate::k256::elliptic_curve::bigint::NonZero::<crate::k256::U256>::const_new(
-                Self::ORDER.0,
-            );
+        let order = NonZero::<U256>::new_unwrap(Self::ORDER.0);
         let a = self.0.rem(&order);
         let b = other.0.rem(&order);
 
@@ -148,11 +136,13 @@ impl ScalarInner {
     }
 
     pub(super) fn add_in_place(&mut self, rhs: &Self) {
-        self.0 = self.0.add_mod(&rhs.0, &Self::ORDER.0);
+        self.0 = self
+            .0
+            .add_mod(&rhs.0, &NonZero::<U256>::new_unwrap(Self::ORDER.0));
     }
 
     pub(super) fn negate_in_place(&mut self) {
-        self.0 = self.0.neg_mod(&Self::ORDER.0);
+        self.0 = self.0.neg_mod(&NonZero::<U256>::new_unwrap(Self::ORDER.0));
     }
 
     pub(super) fn is_zero(&self) -> bool {
@@ -347,8 +337,8 @@ impl ScalarInner {
         c >>= 32;
 
         // Final reduction of r.
-        let r = U256::from([r0, r1, r2, r3, r4, r5, r6, r7]);
-        let (r2, underflow) = r.sbb(&Self::ORDER.0, Limb::ZERO);
+        let r = U256::from_words([r0, r1, r2, r3, r4, r5, r6, r7]);
+        let (r2, underflow) = r.borrowing_sub(&Self::ORDER.0, Limb::ZERO);
         let high_bit = c as u8;
         let underflow = (underflow.0 >> 31) as u8;
 
@@ -520,8 +510,7 @@ impl proptest::arbitrary::Arbitrary for ScalarInner {
         use proptest::prelude::{any, Strategy};
 
         any::<[u32; 8]>().prop_map(|words| {
-            let (order, _) =
-                crate::k256::elliptic_curve::bigint::NonZero::<U256>::const_new(Self::ORDER.0);
+            let order = NonZero::<U256>::new_unwrap(Self::ORDER.0);
             let u256 = U256::from_words(words).rem(&order);
             Self(u256)
         })
